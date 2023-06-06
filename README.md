@@ -11,4 +11,6 @@ You will find projects relevant to the following courses:<br>
   - Electronics
   - VLSI Design
   - Senior Project
+  - GPU Computing
+  - Data Analytics Programming
 </p>
