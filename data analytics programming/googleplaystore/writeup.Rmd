@@ -1,0 +1,228 @@
+---
+title: "Google Play Store | Project 1 Write-up"
+author: "Ellis Chen"
+output: html_document
+date: "2023-03-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here is the link to my dataset: [https://www.kaggle.com/datasets/lava18/google-play-store-apps](https://www.kaggle.com/datasets/lava18/google-play-store-apps).
+
+# About the Dataset
+Google Play Store data comes in two datasets stored in separate csv files.
+The first dataset lists data on various apps (install size, number of installs, categories, etc) found in the Google Play Store.
+Each observation (row) represents the attributes of an app published on the Google Play Store.
+The second dataset lists the reviews and corresponding sentiment data left for various apps found in the Google Play Store.
+Each observation represents a unique user-review uploaded on the Google Play Store.
+There are two datasets, 18 variables in total:
+
+| Variable | Description | Type |
+| :------- | :---------- | :--- |
+| App name | name of the app | nominal |
+| Category | category that the app belongs to | nominal |
+| Rating |  user rating score (range +1,+5) | continuous |
+| Reviews | number of user reviews | discrete |
+| Size | storage size | continuous |
+| Installs | number of users that installed the app | discrete |
+| Type | paid or free app | binary |
+| Price | price of the app | continuous |
+| Genres | app can fall under multiple genres | nominal |
+| Last updated | date when app was last updated | ordinal |
+| Current Ver | current version of the app | ordinal |
+| Android Ver | minimum required android version | ordinal |
+| Translated Review | user's written reviews | nominal |
+| Sentiment | positive/negative/neutral sentiment Category from reviews | nominal |
+| Sentiment polarity | sentiment polarity score (range -1,+1) | continuous |
+| Sentiment subjectivity | sentiment subjectivity score (range 0,+1) | continuous |
+
+The main motivations for analyzing this dataset are:
+
+- Identify the most common type of content in the store
+- Identify the most common user rating score
+- Identify correlations between rating and number of reviews
+- Understand the relationship between price and rating
+- Deduce whether ratings are significantly different for apps that are free vs paid
+
+# Loading Contents of the Dataset
+
+```{r, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(dplyr)
+playstore <- read_csv("googleplaystore.csv")
+reviews <- read_csv("googleplaystore_user_reviews.csv")
+```
+
+The playstore dataset contains 10,841 rows (apps) and 13 variables (app attributes).
+
+```{r}
+str(playstore)
+summary(playstore)
+```
+
+The reviews dataset contains 64,295 rows (reviews for an app) and 5 variables (review attributes)
+
+```{r}
+str(reviews)
+summary(reviews)
+```
+
+# Analysis of the Dataset
+
+### Plot 1
+The bar graph shows the frequency of various content ratings. The most frequent content rating falls under 'Everyone', followed by 'Teen', 'Mature 17+', 'Everyone 10+', and 'Adults only 18+'.
+
+```{r}
+playstore %>%
+  drop_na() %>%
+  group_by(`Content Rating`) %>%
+  summarize(count = n()) %>%
+  filter(count > 1) %>%
+  ggplot(aes(reorder(`Content Rating`, count), count)) +
+  geom_bar(fill = "forestgreen", stat = "identity") +
+  labs(title = "Frequency of Content Ratings in the Google Play Store") +
+  xlab("Content Ratings") +
+  ylab("Count")
+```
+
+
+### Plot 2
+The scatterplot shows the relationship between user-rating scores and the number of user-reviews.
+The data is colored by the content rating associated with each app.
+Visually, most user-reviews were written for apps that have higher rating (between 4 and 5).
+Also, most reviews were written for apps that have a 'Everyone' content rating.
+
+```{r}
+playstore %>%
+  drop_na() %>%
+  ggplot(aes(Rating, Reviews, color = `Content Rating`)) +
+  geom_point() +
+  labs(title = "Google Play Store Ratings vs Reviews")
+```
+
+### Plot 3
+The boxplot shows that the lower quartile, median, and upper quartile of user-ratings are slightly greater for paid apps than for free apps.
+The range of user-ratings for free apps is the same as for paid apps, although free apps contained more outliers in its user-ratings.
+
+```{r}
+playstore %>%
+  drop_na() %>%
+  ggplot(aes(Type, Rating)) +
+  geom_boxplot() +
+  labs(title = "App Type vs App Ratings")
+```
+
+### Plot 4
+The scatterplot shows the relationship between sentiment polarity score and sentiment subjectivity score; the data points are colored by their sentiment group.
+The scatterplot shows that positive sentiment polarity scores are colored in blue and negative sentiment polarity scores are colored in red. Sentiment polarity scores of zero are colored green. Visually, there are slightly more users that yield positive sentiment polarity scores than negative scores. It is also visually striking that sentiment polarity scores are most dense near sentiment subjectivity scores of ~0.5.
+
+```{r}
+reviews %>%
+  drop_na() %>%
+  ggplot(aes(Sentiment_Polarity, Sentiment_Subjectivity, color = Sentiment)) +
+  geom_point() +
+  labs(title = "Sentiment Polarity vs Sentiment Subjectivity for App Reviews")
+```
+
+### Plot 5
+The boxplot verifies the fact that neutral sentiments are truly within a sentiment polarity score of 0. The boxplot shows the dataset contains user polarity scores that cover the entire range (-1, +1). Most negative sentiments occur between -0.5 and 0; most positive sentiments occur between 0 and +0.5.
+
+```{r}
+reviews %>%
+  drop_na() %>%
+  ggplot(aes(Sentiment, Sentiment_Polarity)) +
+  geom_boxplot() +
+  labs(title = "Sentiment Polarity Box Plot")
+```
+
+### Plot 6
+The density plot shows the frequency of user-rating scores for the top 5 reoccurring app categories. The top 5 categories are: business, family, game, medical, and tools. The plot shows a normal distribution skewed to the right. With the mean rating estimated to be around 4 and 5. This means that most apps that fall under these top 5 categories are rated highly by users. An interesting observation is that the game category contains the most frequent number of ratings, which gives some indication that games have more high ratings on average than other categories.
+
+```{r}
+top5 <- playstore %>%
+  group_by(Category) %>%
+  summarize(count = n()) %>%
+  top_n(5)
+
+my_list <- list()
+for (i in 1:5) {
+  my_list[i] <- top5[i,1]
+}
+
+playstore %>%
+  drop_na() %>%
+  filter(Category %in% my_list) %>%
+  ggplot(aes(Rating, color = Category)) +
+  geom_density() +
+  labs(title = "Density of Ratings for Top 5 Categories")
+```
+
+### Correlation Tests
+The pearson correlation test between user-rating score and the number of user-reviews yields a correlation coefficient of 0.068;
+the p-value = 4.073e-11, which is less than alpha = 0.05. The p-value is smaller than alpha, so the null hypothesis is rejected.
+User-rating scores and the number of user-reviews are weakly, positively correlated.
+
+```{r}
+cor.test(playstore$Rating, playstore$Reviews)
+```
+
+The spearman correlation test between the same variables yields a coefficient of 0.156 and a p-value < 2.2e-16.
+The p-value is also smaller than alpha for the spearman method, so the null hypothesis is rejected;
+the test shows these variables are weakly, positively correlated.
+
+```{r}
+cor.test(playstore$Rating, playstore$Reviews, method = "spearman")
+```
+
+### Linear Regression
+A linear regression model was performed with Price as the independent variable and Rating as the dependent variable.
+The residual standard error was 0.5444, which indicates that the user-rating scores deviated from the regression line by roughly 0.5 on average.
+The R-squared value was 0.000267, which indicates that less than 0% of the variability of rating scores are explained by price changes.
+The slope of the regression line was 0.004858, which indicates that there very negligible average change in rating scores for every change in price.
+
+```{r}
+playstore$Size <- gsub('[M]', '', playstore$Size)
+playstore$Size <- as.integer(playstore$Size)
+playstore$Installs <- gsub('[+,]', '', playstore$Installs)
+playstore$Installs <- as.integer(playstore$Installs)
+playstore$Price <- gsub('[$]', '', playstore$Price)
+playstore$Price <- as.integer(playstore$Price)
+playstore <- playstore %>% drop_na()
+new_ps <- filter(playstore, Price < 50)
+
+summary(lm(Rating ~ Price, data = new_ps))
+
+new_ps %>%
+  ggplot(aes(Price, Rating)) +
+  geom_point() +
+  geom_smooth(method=lm) +
+  labs(title = "Linear Regression with Price and Rating")
+```
+
+### T-Testing
+The null hypothesis to test was: There is no difference in means for user-rated scores between free and paid apps.
+The binary variable for the t-test was Type, which either expressed 'free' or 'paid'.
+The t-test results between Type (independent) and Rating (dependent) yielded a p-value = 8.702e-5.
+Results show that we can be 95% confident that the mean lies between the interval (-0.147,-0.059).
+The mean for group 'free' was 4.173 and the mean for group 'paid' was 4.271, and since the p-value < 0.05,
+the null hypothesis was rejected; there was a true difference in means for user-rated scores between free and paid apps.
+
+```{r}
+new_ps <- playstore %>% filter(Type == "Free" | Type == "Paid")
+t.test(Rating ~ Type, data = new_ps)
+```
+
+The next null hypothesis to test was: There is no difference in means for sentiment polarity between positive and negative user-sentiment.
+The binary variable for the t-test was Sentiment, where its state can either be 'positive' or 'negative'.
+The p-value is less than 2.2e-16 for the t-test between Sentiment (independent) and Sentiment Polarity (dependent).
+We can be 95% confident that the mean lies between -0.634 and -0.623.
+The mean for group 'Negative' was -0.256 and the mean for group 'positive' was 0.372; these statistics show that we can reject the null hypothesis
+and say there was a difference in means for sentiment polarity between positive and negative user-sentiment.
+
+```{r}
+new_rv <- reviews %>% filter(Sentiment == "Positive" | Sentiment == "Negative")
+t.test(Sentiment_Polarity ~ Sentiment, data = new_rv)
+```
+
